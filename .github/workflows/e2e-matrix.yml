@@ -1,0 +1,108 @@
+name: e2e-hypervisor-matrix
+
+on:
+  workflow_dispatch:
+    inputs:
+      legs:
+        description: "Comma-separated legs to run (kvm,vme,hyperv)"
+        default: "kvm,vme,hyperv"
+      product_build:
+        description: "Product build id/artifact to deploy under test"
+        required: true
+  schedule:
+    - cron: "0 6 * * 1-5" # nightly on weekdays
+
+env:
+  AWS_REGION: us-east-2
+  TF_DIR: infra/envs/test # hv-testbed-infra checked out into ./infra
+  STATE_BUCKET: hv-testbed-tfstate
+  IMAGE_BUCKET: hv-testbed-golden-images
+
+jobs:
+  plan-matrix:
+    runs-on: ubuntu-latest
+    outputs:
+      legs: ${{ steps.legs.outputs.legs }}
+    steps:
+      - id: legs
+        run: |
+          INPUT='${{ github.event.inputs.legs || 'kvm,vme,hyperv' }}'
+          echo "legs=$(echo "$INPUT" | jq -Rc 'split(",")')" >> "$GITHUB_OUTPUT"
+
+  e2e:
+    needs: plan-matrix
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false # one leg failing must not strand the others' teardown
+      matrix:
+        leg: ${{ fromJson(needs.plan-matrix.outputs.legs) }}
+    env:
+      RUN_ID: ${{ github.run_id }}-${{ matrix.leg }}
+    permissions:
+      id-token: write # OIDC to AWS; no long-lived keys
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/checkout@v4
+        with:
+          repository: ${{ github.repository_owner }}/hv-testbed-infra
+          path: infra
+
+      - uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ secrets.AWS_CI_ROLE_ARN }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - uses: hashicorp/setup-terraform@v3
+
+      - name: Resolve golden image for leg
+        id: image
+        run: |
+          URI=$(aws s3 cp "s3://$IMAGE_BUCKET/golden/${{ matrix.leg }}/latest.txt" -)
+          echo "uri=$URI" >> "$GITHUB_OUTPUT"
+
+      - name: Provision test host
+        working-directory: ${{ env.TF_DIR }}
+        run: |
+          terraform init \
+            -backend-config="bucket=$STATE_BUCKET" \
+            -backend-config="region=$AWS_REGION" \
+            -backend-config="key=runs/$RUN_ID.tfstate"
+          terraform apply -auto-approve \
+            -var "run_id=$RUN_ID" \
+            -var "leg=${{ matrix.leg }}" \
+            -var "subnet_id=${{ secrets.TEST_SUBNET_ID }}" \
+            -var "security_group_id=${{ secrets.TEST_SG_ID }}" \
+            -var "lab_image_s3_uri=${{ steps.image.outputs.uri }}"
+
+      - name: Wait for guest VM
+        run: ./scripts/wait-for-guest.sh "${{ matrix.leg }}" "$RUN_ID"
+
+      - name: Deploy product build
+        run: ./scripts/deploy-product.sh "${{ matrix.leg }}" "$RUN_ID" "${{ github.event.inputs.product_build }}"
+
+      - name: Run e2e suite
+        run: ./scripts/run-tests.sh "${{ matrix.leg }}" "$RUN_ID"
+
+      - name: Collect logs and artifacts
+        if: always()
+        run: ./scripts/collect-artifacts.sh "${{ matrix.leg }}" "$RUN_ID" || true
+
+      - name: Destroy test host
+        if: always() # teardown runs on success, failure, and cancellation
+        working-directory: ${{ env.TF_DIR }}
+        run: |
+          terraform destroy -auto-approve \
+            -var "run_id=$RUN_ID" \
+            -var "leg=${{ matrix.leg }}" \
+            -var "subnet_id=${{ secrets.TEST_SUBNET_ID }}" \
+            -var "security_group_id=${{ secrets.TEST_SG_ID }}" \
+            -var "lab_image_s3_uri=${{ steps.image.outputs.uri }}"
+
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: e2e-${{ matrix.leg }}-${{ github.run_id }}
+          path: artifacts/
+          if-no-files-found: ignore
