@@ -1,8 +1,8 @@
 #!/usr/bin/env bash
 # Poll the test host (via SSM) until the lab guest VM is up, or time out.
 # The host AMIs drop a sentinel file when the guest has started:
-#   KVM/VME:  /var/run/hv-testbed-guest-started
-#   Hyper-V:  C:\hv-testbed\guest-started
+#   KVM/VME:  /var/run/hyperforge-guest-started
+#   Hyper-V:  C:\hyperforge\guest-started
 set -euo pipefail
 
 LEG="${1:?leg}"
@@ -20,10 +20,10 @@ fi
 
 if [[ "$LEG" == "hyperv" ]]; then
   DOC="AWS-RunPowerShellScript"
-  CHECK='if (Test-Path C:\hv-testbed\guest-started) { exit 0 } else { exit 1 }'
+  CHECK='if (Test-Path C:\hyperforge\guest-started) { exit 0 } else { exit 1 }'
 else
   DOC="AWS-RunShellScript"
-  CHECK='test -f /var/run/hv-testbed-guest-started'
+  CHECK='test -f /var/run/hyperforge-guest-started'
 fi
 
 DEADLINE=$(( $(date +%s) + TIMEOUT_SECS ))

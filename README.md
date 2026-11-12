@@ -1,6 +1,6 @@
-# hv-testbed-e2e
+# hyperforge-flows
 
-CI orchestration for the hypervisor testbed. One workflow, a matrix of three
+CI orchestration for HyperForge. One workflow, a matrix of three
 legs (`kvm`, `vme`, `hyperv`), each leg fully independent:
 
 ```
@@ -9,7 +9,7 @@ deploy product → run e2e suite → collect artifacts → terraform destroy
 ```
 
 Teardown (`terraform destroy`) runs under `if: always()` so it happens on
-success, failure, and cancellation. The ttl-reaper in `hv-testbed-infra` is
+success, failure, and cancellation. The ttl-reaper in `hyperforge-core` is
 the backstop if even that fails.
 
 ## Wiring needed before first run

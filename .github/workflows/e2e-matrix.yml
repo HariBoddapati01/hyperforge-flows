@@ -14,9 +14,9 @@ on:
 
 env:
   AWS_REGION: us-east-2
-  TF_DIR: infra/envs/test # hv-testbed-infra checked out into ./infra
-  STATE_BUCKET: hv-testbed-tfstate
-  IMAGE_BUCKET: hv-testbed-golden-images
+  TF_DIR: infra/envs/test # hyperforge-core checked out into ./infra
+  STATE_BUCKET: hyperforge-tfstate
+  IMAGE_BUCKET: hyperforge-golden-images
 
 jobs:
   plan-matrix:
@@ -46,7 +46,7 @@ jobs:
 
       - uses: actions/checkout@v4
         with:
-          repository: ${{ github.repository_owner }}/hv-testbed-infra
+          repository: ${{ github.repository_owner }}/hyperforge-core
           path: infra
 
       - uses: aws-actions/configure-aws-credentials@v4
