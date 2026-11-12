@@ -1,40 +1,54 @@
-# hyperforge-flows
+# HyperForge · flows
 
-CI orchestration for HyperForge. One workflow, a matrix of three
-legs (`kvm`, `vme`, `hyperv`), each leg fully independent:
+CI orchestration for [HyperForge](https://github.com/HariBoddapati01/hyperforge-core) — the ephemeral
+hypervisor testbed that recreates lab VMs (KVM, Hyper-V, HPE VM Essentials) on
+AWS for end-to-end product testing.
 
+One workflow, a matrix of three independent legs:
+
+```mermaid
+flowchart LR
+    R[resolve golden image] --> A[terraform apply]
+    A --> W[wait for guest]
+    W --> D[deploy product]
+    D --> T[run e2e suite]
+    T --> C[collect artifacts]
+    C --> X["terraform destroy — if: always()"]
 ```
-resolve golden image → terraform apply → wait for guest →
-deploy product → run e2e suite → collect artifacts → terraform destroy
-```
 
-Teardown (`terraform destroy`) runs under `if: always()` so it happens on
-success, failure, and cancellation. The ttl-reaper in `hyperforge-core` is
-the backstop if even that fails.
+Each leg (`kvm`, `vme`, `hyperv`) provisions its own host, runs in parallel
+with its own Terraform state (`runs/<run-id>-<leg>.tfstate`), and tears down
+unconditionally — `fail-fast: false` plus `if: always()` on destroy means one
+leg's failure never strands another's infrastructure. The TTL reaper in
+hyperforge-core is the backstop if even the destroy step dies.
 
-## Wiring needed before first run
+## Triggering
 
-Secrets (repo or org level):
+- **Manual**: Actions → `e2e-hypervisor-matrix` → Run workflow. Pick legs
+  (default all three) and the product build id to deploy.
+- **Scheduled**: weekday nightly at 06:00 UTC, all legs.
 
-- `AWS_CI_ROLE_ARN` — OIDC role for GitHub Actions
-- `TEST_SUBNET_ID`, `TEST_SG_ID` — from the one-time infra setup
+## Required secrets
 
-Scripts in `scripts/` that are placeholders (they exit 1 on purpose so a
-half-wired pipeline can't go green):
+| Secret | Purpose |
+|--------|---------|
+| `AWS_CI_ROLE_ARN` | OIDC role assumed by the workflow — no long-lived keys |
+| `TEST_SUBNET_ID` | Subnet for test hosts (from one-time account setup) |
+| `TEST_SG_ID` | Security group (egress-only; host access via SSM) |
 
-- `deploy-product.sh` — install the product build onto the guest VM
-- `run-tests.sh` — invoke the real e2e suite
-- `collect-artifacts.sh` — partially implemented (host console log); add
-  hypervisor + guest log collection
+## Scripts
 
-`wait-for-guest.sh` is functional: it polls via SSM for the sentinel file the
-host AMIs drop once the guest VM has started.
+| Script | State | Does |
+|--------|-------|------|
+| `wait-for-guest.sh` | ✅ functional | Polls via SSM for the sentinel file the host AMIs drop once the guest VM is up (`/var/run/hyperforge-guest-started` on Linux, `C:\hyperforge\guest-started` on Windows) |
+| `collect-artifacts.sh` | 🔶 partial | Grabs host console log; hypervisor + guest log collection TODO |
+| `deploy-product.sh` | ⛔ placeholder | **Exits 1 on purpose** — wire in the product's real install mechanism |
+| `run-tests.sh` | ⛔ placeholder | **Exits 1 on purpose** — point at the real e2e suite |
 
-## Running
+The placeholders fail loudly so a half-wired pipeline can never go green.
 
-- Manual: Actions → `e2e-hypervisor-matrix` → Run workflow, pick legs and a
-  product build id.
-- Scheduled: weekday nightly at 06:00 UTC, all three legs.
+## Status
 
-Each leg gets its own Terraform state (`runs/<github-run-id>-<leg>.tfstate`),
-so legs run in parallel and repeated runs never collide.
+- [x] Workflow actionlint-clean, scripts shellcheck-clean
+- [ ] Secrets not yet configured
+- [ ] deploy/run scripts pending product integration
