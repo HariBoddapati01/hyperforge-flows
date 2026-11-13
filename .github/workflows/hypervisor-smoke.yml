@@ -30,7 +30,9 @@ jobs:
       - name: Install hypervisor stack (mirrors bakery provision.sh)
         run: |
           sudo apt-get update
-          sudo apt-get install -y qemu-kvm libvirt-daemon-system libvirt-clients \
+          # qemu-system-x86, not qemu-kvm: the latter is an ambiguous virtual
+          # package on Ubuntu 25.10+ and apt refuses to resolve it
+          sudo apt-get install -y qemu-system-x86 libvirt-daemon-system libvirt-clients \
             virtinst bridge-utils cloud-image-utils jq
           sudo systemctl enable --now libvirtd
           sudo virsh net-autostart default || true
