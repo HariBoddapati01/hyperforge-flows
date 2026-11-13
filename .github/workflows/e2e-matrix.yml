@@ -9,8 +9,9 @@ on:
       product_build:
         description: "Product build id/artifact to deploy under test"
         required: true
-  schedule:
-    - cron: "0 6 * * 1-5" # nightly on weekdays
+  # Re-enable once AWS secrets and deploy/run scripts are wired:
+  # schedule:
+  #   - cron: "0 6 * * 1-5" # nightly on weekdays
 
 env:
   AWS_REGION: us-east-2
