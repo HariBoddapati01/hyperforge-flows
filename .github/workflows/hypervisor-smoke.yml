@@ -1,0 +1,86 @@
+name: hypervisor-smoke
+
+# Free validation of the hypervisor host stacks on GitHub-hosted runners:
+#
+#   kvm-x86:        ubuntu-latest exposes /dev/kvm (officially supported) —
+#                   the same x86 KVM stack as the cloud kvm/vme leg, free.
+#   hyperv-probe:   Hyper-V on Windows runners is NOT officially supported;
+#                   this job probes what's available and tries a minimal VM.
+#                   It is continue-on-error — informational only.
+#
+# Neither job touches AWS. No secrets, no cost beyond free runner minutes.
+
+on:
+  push:
+    paths:
+      - ".github/workflows/hypervisor-smoke.yml"
+  workflow_dispatch:
+  schedule:
+    - cron: "0 5 * * 1" # weekly Monday, catch runner-image regressions
+
+jobs:
+  kvm-x86:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Verify KVM is available
+        run: |
+          test -c /dev/kvm && echo "OK: /dev/kvm present"
+          sudo chmod 666 /dev/kvm
+
+      - name: Install hypervisor stack (mirrors bakery provision.sh)
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y qemu-kvm libvirt-daemon-system libvirt-clients \
+            virtinst bridge-utils cloud-image-utils jq
+          sudo systemctl enable --now libvirtd
+          sudo virsh net-autostart default || true
+          sudo virsh net-start default || true
+
+      - name: Boot nested guest (CirrOS x86_64)
+        run: |
+          sudo mkdir -p /var/lib/libvirt/images
+          sudo curl -fsSL https://download.cirros-cloud.net/0.6.3/cirros-0.6.3-x86_64-disk.img \
+            -o /var/lib/libvirt/images/smoke.img
+          sudo virt-install \
+            --name smoke \
+            --memory 512 \
+            --vcpus 1 \
+            --disk path=/var/lib/libvirt/images/smoke.img,format=qcow2,bus=virtio \
+            --import \
+            --osinfo detect=on,require=off \
+            --network network=default,model=virtio \
+            --graphics none \
+            --noautoconsole
+
+      - name: Assert guest is a running KVM domain
+        run: |
+          for _ in $(seq 1 12); do
+            [ "$(sudo virsh domstate smoke)" = "running" ] && break
+            sleep 5
+          done
+          sudo virsh dominfo smoke
+          [ "$(sudo virsh domstate smoke)" = "running" ]
+          sudo virsh dumpxml smoke | grep -q "domain type='kvm'"
+          echo "PASS: x86 KVM host stack verified on free runner"
+
+  hyperv-probe:
+    runs-on: windows-latest
+    continue-on-error: true # experimental: not officially supported on hosted runners
+    steps:
+      - name: Probe Hyper-V availability
+        shell: powershell
+        run: |
+          systeminfo | Select-String "Hyper-V"
+          Get-WindowsOptionalFeature -Online -FeatureName Microsoft-Hyper-V-All |
+            Format-Table FeatureName, State
+          Get-Module -ListAvailable Hyper-V | Format-Table Name, Version
+
+      - name: Try a minimal Hyper-V VM (informational)
+        shell: powershell
+        run: |
+          $ErrorActionPreference = "Stop"
+          New-VHD -Path C:\probe.vhdx -SizeBytes 1GB -Dynamic
+          New-VM -Name probe -MemoryStartupBytes 512MB -VHDPath C:\probe.vhdx -Generation 2
+          Start-VM -Name probe
+          Get-VM probe | Format-Table Name, State
+          Write-Host "Hyper-V VM lifecycle worked on this runner image"
