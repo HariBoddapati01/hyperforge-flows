@@ -4,8 +4,8 @@ on:
   workflow_dispatch:
     inputs:
       legs:
-        description: "Comma-separated legs to run (kvm,vme,hyperv)"
-        default: "kvm,vme,hyperv"
+        description: "Comma-separated legs to run (kvm,vme,ahv,hyperv)"
+        default: "kvm,vme,ahv,hyperv"
       product_build:
         description: "Product build id/artifact to deploy under test"
         required: true
@@ -27,7 +27,7 @@ jobs:
     steps:
       - id: legs
         run: |
-          INPUT='${{ github.event.inputs.legs || 'kvm,vme,hyperv' }}'
+          INPUT='${{ github.event.inputs.legs || 'kvm,vme,ahv,hyperv' }}'
           echo "legs=$(echo "$INPUT" | jq -Rc 'split(",")')" >> "$GITHUB_OUTPUT"
 
   e2e:
