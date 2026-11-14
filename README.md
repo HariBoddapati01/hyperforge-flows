@@ -1,5 +1,7 @@
 # HyperForge · flows
 
+[![hypervisor-smoke](https://github.com/HariBoddapati01/hyperforge-flows/actions/workflows/hypervisor-smoke.yml/badge.svg)](https://github.com/HariBoddapati01/hyperforge-flows/actions/workflows/hypervisor-smoke.yml) [![License: Apache-2.0](https://img.shields.io/badge/License-Apache_2.0-blue.svg)](LICENSE)
+
 CI orchestration for [HyperForge](https://github.com/HariBoddapati01/hyperforge-core) — the ephemeral
 hypervisor testbed that recreates lab VMs (KVM, Hyper-V, HPE VM Essentials) on
 AWS for end-to-end product testing.
