@@ -1,0 +1,39 @@
+name: Bug report
+description: Something broken or behaving unexpectedly
+labels: ["bug"]
+body:
+  - type: textarea
+    id: what
+    attributes:
+      label: What happened?
+      description: What did you do, what did you expect, what happened instead.
+    validations:
+      required: true
+  - type: dropdown
+    id: area
+    attributes:
+      label: Area
+      options:
+        - Terraform (modules / envs)
+        - Profiles
+        - localtest harness
+        - TTL reaper
+        - Other / not sure
+    validations:
+      required: true
+  - type: dropdown
+    id: profile
+    attributes:
+      label: Hypervisor profile (if relevant)
+      options: ["n/a", "kvm", "vme", "ahv", "kubevirt", "hyperv", "custom"]
+  - type: textarea
+    id: output
+    attributes:
+      label: Relevant output
+      description: Terraform/localtest/CI output. Paste as text, not screenshots.
+      render: shell
+  - type: input
+    id: versions
+    attributes:
+      label: Versions
+      placeholder: "terraform 1.x, provider aws 5.x, macOS/Linux"

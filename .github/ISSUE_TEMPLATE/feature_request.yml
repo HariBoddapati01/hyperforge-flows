@@ -1,0 +1,28 @@
+name: Feature request
+description: Propose an improvement or a new hypervisor profile
+labels: ["enhancement"]
+body:
+  - type: textarea
+    id: problem
+    attributes:
+      label: Problem / motivation
+      description: What can't you do today, or what's harder than it should be?
+    validations:
+      required: true
+  - type: textarea
+    id: proposal
+    attributes:
+      label: Proposed approach
+      description: >
+        For a new hypervisor: name it, say whether it's KVM-based (can it ride
+        the existing kvm-host image?), and what its guest needs (memory, disks,
+        VT-x passthrough). For other features: sketch the change.
+    validations:
+      required: true
+  - type: checkboxes
+    id: scope
+    attributes:
+      label: Scope check
+      options:
+        - label: This fits HyperForge's scope (ephemeral, profile-driven, cost-controlled test hosts) rather than long-lived infra or product-specific logic
+          required: true
